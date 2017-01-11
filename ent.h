@@ -42,13 +42,9 @@ int ent_header_print(ent_header_t* header);
 typedef struct
 {
     ent_header_t* head;
-    bool is_stream;
-    union
-    {
-	FILE* file;
-	char* data;
-    };
+    char* data;
 } ent_t;
 
 ent_t* ent_read(FILE* file);
-ent_t* ent_create(ent_header_t* header, FILE* file);
+ent_t* ent_create(ent_header_t* header, char* data);
+int ent_print(ent_t* ent);

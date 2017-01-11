@@ -1,5 +1,6 @@
 #include "message.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <ctype.h>
 
@@ -7,18 +8,48 @@
 
 int message_write(message_t const* msg, FILE* file)
 {
-    if (fwrite(msg, sizeof(message_t), 1, file) != 1)
+    if (fputc('[', file) == EOF
+	|| fwrite(&msg->id, sizeof(kid_t), 1, file) != 1
+	|| fputc(',', file) == EOF
+	|| fwrite(&msg->len, sizeof(len_t), 1, file) != 1
+	|| fputc(']', file) == EOF
+	|| fwrite(msg->data, msg->len, 1, file) != 1)
     {
 	fputs("File write error", stderr);
-	return 1;
+	return -1;
     }
+    
     
     return 0;
 }
 
+uint64_t read_uint64_t(FILE* file)
+{
+    uint64_t ret = 0;
+    
+    for (size_t i = 0; i < sizeof(kid_t) << 1; ++i)
+    {
+	char c = fgetc(file);
+	if (c == EOF)
+	{
+	    fputs("Unawaited EOF", stderr);
+	    exit(-1);
+	}
+	else if (! isxdigit(c))
+	{
+	    fputs("Currently only works with hex input", stderr);
+	    exit(-1);
+	}
+	else
+	    ret = (ret << 4) | ((c -'0') & 15);
+    }
+
+    return ret;
+}
+
 /* Message format:
  * 
- * [kid_t,len_t,encoding_t]
+ * [kid_t,len_t]
  * DATA
  * 
  * */
@@ -27,38 +58,30 @@ message_t* message_read(FILE* file)
     message_t* ret = (message_t*)malloc(sizeof(message_t));
     
     skip(file, '[');
-    {				
-	/* Read kid_t */
-	ret->id = 0;
-
-	for (size_t i = 0; i < 16; ++i)
-	{
-	    char c = fgetc(file);
-	    if (c == EOF)
-	    {
-		fputs("Unawaited EOF", stderr);
-		return NULL;
-	    }
-	    else if (! isxdigit(c))
-	    {
-		fputs("Currently only works with hex input", stderr);
-		return NULL;
-	    }
-	    else
-		ret->id = (ret->id << 4) | ((c -'0') & 15);
-	}
-    }
+    ret->id = read_uint64_t(file);
+    skip(file, ',');
+    ret->len = read_uint64_t(file);
     skip(file, ']');
 
+    ret->data = (char*)malloc(sizeof(char) *ret->len);
+    
+    if (fread(ret->data, ret->len, 1, file) != 1)
+    {
+	fputs("File read error", stderr);
+	return NULL;
+    }
+    
     return ret;
 }
 
-message_t* message_create(kid_t id, len_t len, char* data)
+message_t* message_create(kid_t id, len_t start_pos, len_t len, char* data)
 {
+    assert(len && data);
     message_t* ret = (message_t*)malloc(sizeof(message_t));
     
     ret->id = id;
     ret->len = len;
+    ret->start_pos = start_pos;
     ret->data = data;
     
     return ret;
@@ -66,18 +89,20 @@ message_t* message_create(kid_t id, len_t len, char* data)
 
 int message_encrypt_xor(message_t* msg, ent_t* entropy)
 {
-    if (msg->len > entropy->head->data_len -entropy->head->start_pos)
+    if (msg->start_pos < entropy->head->start_pos)
     {
-	fprintf(stderr, "Keyfile '%" PRIx64 "' insufficient for encrypting message '%" PRIx64 "'\n", entropy->head->kid, msg->id);
+	fputs("Entropy file is AHEAD of message", stderr);
+	return -1;
+    }
+    else if ((msg->start_pos +msg->len) > (entropy->head->start_pos +entropy->head->data_len))
+    {
+	fputs("Insufficient entopy data left", stderr);
 	return -1;
     }
     
-    fseek(entropy->file, entropy->head->start_pos, SEEK_SET);
-    
     for (len_t i = 0; i < msg->len; ++i)
     {
-	uint8_t key = fgetc(entropy->file);
-	msg->data[i] ^= key;
+	msg->data[i] ^= entropy->data[msg->start_pos +i];
     }
     
     return 0;
@@ -85,5 +110,5 @@ int message_encrypt_xor(message_t* msg, ent_t* entropy)
 
 int message_print(message_t* msg)
 {
-
+    printf("[%" PRIx64 ",%" PRIx64 "]%s\n", msg->id, msg->start_pos, msg->data);
 }

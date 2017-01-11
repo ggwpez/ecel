@@ -24,26 +24,11 @@ ent_header_t* ent_header_read(FILE* file)
 	return NULL;
     }
 
-    /* Assert the file size */
-    {
-	struct stat st;
-	if (fstat(fileno(file), &st) < 0)
-	{
-	    fputs("File fstat error", stderr);
-	    return NULL;
-	}
-	if (st.st_size && (st.st_size != sizeof(ent_header_t) +ret->data_len)) /* Check also for stream size, std-streams dont have any */
-	{
-	    fprintf(stderr, "File corrupt st.st_size: %zu sizeof(ent_header_t): %zu ret->data_len: %zu\n", st.st_size, sizeof(ent_header_t), ret->data_len);
-	    return NULL;
-	}
-    }
-
     /* Check expiration date */
     {
 	
     }
-
+    
     return ret;
 }
 
@@ -86,15 +71,28 @@ ent_t* ent_read(FILE* file)
 {
     ent_header_t* head = ent_header_read(file);
 
-    return ent_create(head, file);
+    char* buffer = (char*)malloc(head->data_len);
+    if (fread(buffer, sizeof(char), head->data_len, file) != head->data_len)
+    {
+	fputs("File input Error", stderr);
+	return NULL;
+    }
+
+    return ent_create(head, buffer);
 }   
 
-ent_t* ent_create(ent_header_t* header, FILE* file)
+ent_t* ent_create(ent_header_t* header, char* data)
 {
     ent_t* ret = (ent_t*)malloc(sizeof(ent_t));
 
     ret->head = header;
-    ret->file = file;
+    ret->data = data;
     
     return ret;
+}
+
+int ent_print(ent_t* ent)
+{
+    
+    return ent_header_print(ent->head) +printf("%.*s", (int)ent->head->data_len, ent->data);
 }

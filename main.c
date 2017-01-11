@@ -1,9 +1,14 @@
+#include "message.h"
 #include "ent.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <getopt.h>
 #include <stdlib.h>
 #include <time.h>
+
+#define BUFF_SIZE 1 << 20
 
 FILE* open_file(char const* path)
 {
@@ -30,58 +35,163 @@ print_usage()
 int
 main(int argc, char** argv)
 {
-    FILE* key   = NULL,
-	* input = NULL;
+    assert(sizeof(len_t) >= sizeof(size_t));
+    
+    FILE* key_file   = NULL,
+	* input_file = NULL,
+	* raw_file   = NULL;
+
+    
+    static int mode = -1;
+    kid_t* arg_kid = NULL;
+    len_t* arg_pos = NULL;
     {
-	char c;
-	while ((c = getopt (argc, argv, "k:d:rt")) != -1)
+	int c;
+	while (1)
 	{
+	    static struct option long_options[] =
+		{
+		    /* These options set a flag. */
+		    {"create-key", no_argument, &mode, 2},
+		    {"create-msg", no_argument, &mode, 1},
+		    {"encrypt",    no_argument, &mode, 0},
+		
+		    {"raw",        required_argument, 0, 'r'},
+		    {"key",        required_argument, 0, 'k'},
+		    {"msg",        required_argument, 0, 'm'},
+		    {"pos",        required_argument, 0, 'p'},
+		    {"kid",        required_argument, 0, 'i'},
+//		{"start-pos",  required_argument, 0, 'p'},
+		    {0, 0, 0, 0}
+		};
+	    /* getopt_long stores the option index here. */
+	    int option_index = 0;
+
+	    c = getopt_long (argc, argv, "m:k:r:i:p:",
+			     long_options, &option_index);
+
+	    /* Detect the end of the options. */
+	    if (c == -1)
+		break;
+
 	    switch (c)
 	    {
-	    case 'k':
-		key = open_file(optarg);
+	    case 0:
+		/* If this option set a flag, do nothing else now. */
+		if (long_options[option_index].flag != 0)
+		    break;
+		printf ("option %s", long_options[option_index].name);
+		if (optarg)
+		    printf (" with arg %s", optarg);
+		printf ("\n");
+		break;
+
+	    case 'p':
+		arg_pos = (len_t*)malloc(sizeof(len_t));
+		*arg_pos = strtoull(optarg, NULL, 16);
 		break;
 		
 	    case 'i':
-		input = open_file(optarg);
+		arg_kid = (kid_t*)malloc(sizeof(kid_t));
+		*arg_kid = strtoull(optarg, NULL, 16);
+		break;
+	    
+	    case 'r':
+		raw_file = open_file(optarg);
+		break;
+	    
+	    case 'k':
+		key_file = open_file(optarg);
 		break;
 
-	    case 't':
-	    {
-		 srand(time(NULL));
-		 
-		 ent_header_t* header = ent_header_create((kid_t)(rand()) << 32 | rand(), 0, 0, NULL, EXTERN, WRITE);
-		 fwrite(header, sizeof(ent_header_t), 1, stdout);
-		 free(header);
-		 return 0;
-	    } break;
+	    case 'm':
+		input_file = open_file(optarg);
+		break;
 
-	    case 'r':
-	    {
-		ent_header_t* header = ent_header_read(stdin);
-		ent_header_print(header);
-		free(header);
-		return 0;
-	    } break;
-		
 	    case '?':
-		if (key) fclose(key);
-		if (input) fclose(input);
-	    
-		return print_usage();
+		/* getopt_long already printed an error message. */
+		break;
+
+	    default:
+		abort();
 	    }
 	}
     }
-    if (! key && ! input)	/* Both streams missing? */
+
+    if (mode == 1)		/* Shall we create a message? */
     {
+	if (! raw_file)
+	{
+	    print_usage();
+	    return 1;
+	}
+	else if (! arg_kid || ! arg_pos)
+	{
+	    fputs("Create-msg needs a --kid=123 and --pos=123", stderr);
+	    return 1;
+	}
+
+	char* raw_buffer = (char*)malloc(BUFF_SIZE *sizeof(char));
+	ssize_t raw_len;
+	if ((raw_len = fread(raw_buffer, sizeof(char), BUFF_SIZE, raw_file)) < 0)
+	{
+	    fputs("Raw file read error", stderr);
+	    return 2;
+	}
+
+	message_t* msg = message_create(*arg_kid, *arg_pos, raw_len, raw_buffer);
+	message_print(msg);
+    }
+    else if (mode == 2)		/* Or better a key? */
+    {
+	if (! raw_file)
+	{
+	    print_usage();
+	    return 1;
+	}
+	else if (! arg_kid || ! arg_pos)
+	{
+	    fputs("Create-key needs a --kid=123 and --pos=123", stderr);
+	    return 1;
+	}
+	
+	char* raw_buffer = (char*)malloc(BUFF_SIZE *sizeof(char));
+	ssize_t raw_len;
+	if ((raw_len = fread(raw_buffer, sizeof(char), BUFF_SIZE, raw_file)) < 0)
+	{
+	    fputs("Raw file read error", stderr);
+	    return 2;
+	}
+
+	ent_header_t* header = ent_header_create(*arg_kid, *arg_pos, raw_len, NULL, EXTERN, 0);
+	ent_t* key = ent_create(header, raw_buffer);
+	ent_print(key);
+    }
+    /* else if (mode == 0) */
+    /* { */
+    /* 	if (! key_file && ! input_file)	/\* Both streams missing? *\/ */
+    /* 	{ */
+    /* 	    print_usage(); */
+    /* 	    return 1; */
+    /* 	} else if ((bool)key_file ^ (bool)input_file)	/\* Only one missing, take stdin *\/ */
+    /* 	{ */
+    /* 	    if (! key_file) key_file = stdin; */
+    /* 	    if (! input_file) input_file = stdin; */
+    /* 	} */
+
+    /* 	message_t* msg = message_read(input_file); */
+    /* 	ent_t* key = ent_read(key_file); */
+    
+    /* 	puts("MSG:"); */
+    /* 	message_print(msg); */
+    /* 	puts("\nKEY:"); */
+    /* 	ent_print(key); */
+    /* } */
+    else
 	print_usage();
-	return 1;
-    }
-    else if ((bool)key ^ (bool)input)	/* Only one missing, take stdin */
-    {
-	if (! key) key = stdin;
-	if (! input) input = stdin;
-    }
+
+    if (arg_kid) free(arg_kid);
+    if (arg_pos) free(arg_pos);
     
     return 0;
 }
