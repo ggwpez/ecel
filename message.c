@@ -1,19 +1,18 @@
 #include "message.h"
+#include "io.h"
 
 #include <assert.h>
 #include <stdlib.h>
 #include <ctype.h>
 
-#define skip(f, c) { char got; if ((got = fgetc(f)) != (c)) { fprintf(stderr, "Syntax error\nAwaited: '%c' but got: '%c'", c, got); }}
-
 int message_write(message_t const* msg, FILE* file)
 {
     if (fputc('[', file) == EOF
-	|| fwrite(&msg->id, sizeof(kid_t), 1, file) != 1
+	|| write_uint64_t(msg->id, file)//fwrite(&msg->id, sizeof(kid_t), 1, file) != 1
 	|| fputc(',', file) == EOF
-	|| fwrite(&msg->len, sizeof(len_t), 1, file) != 1
+	|| write_uint64_t(msg->len, file)//fwrite(&msg->len, sizeof(len_t), 1, file) != 1
 	|| fputc(']', file) == EOF
-	|| fwrite(msg->data, msg->len, 1, file) != 1)
+	|| fwrite(msg->data, sizeof(char), msg->len, file) != msg->len)
     {
 	fputs("File write error", stderr);
 	return -1;
@@ -21,30 +20,6 @@ int message_write(message_t const* msg, FILE* file)
     
     
     return 0;
-}
-
-uint64_t read_uint64_t(FILE* file)
-{
-    uint64_t ret = 0;
-    
-    for (size_t i = 0; i < sizeof(kid_t) << 1; ++i)
-    {
-	char c = fgetc(file);
-	if (c == EOF)
-	{
-	    fputs("Unawaited EOF", stderr);
-	    exit(-1);
-	}
-	else if (! isxdigit(c))
-	{
-	    fputs("Currently only works with hex input", stderr);
-	    exit(-1);
-	}
-	else
-	    ret = (ret << 4) | ((c -'0') & 15);
-    }
-
-    return ret;
 }
 
 /* Message format:
@@ -80,8 +55,8 @@ message_t* message_create(kid_t id, len_t start_pos, len_t len, char* data)
     message_t* ret = (message_t*)malloc(sizeof(message_t));
     
     ret->id = id;
-    ret->len = len;
     ret->start_pos = start_pos;
+    ret->len = len;
     ret->data = data;
     
     return ret;

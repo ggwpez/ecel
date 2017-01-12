@@ -1,11 +1,24 @@
 #include "ent.h"
+#include "io.h"
 
 #include <stdlib.h>
 #include <sys/stat.h>
 
 int ent_header_write(ent_header_t const* header, FILE* file)
 {
-    if(fwrite(header, sizeof(ent_header_t), 1, file) != 1)
+    if (fputc('{', file) == EOF
+	|| write_uint64_t(header->kid, file)
+	|| fputc(',', file) == EOF
+	|| write_uint64_t(header->start_pos, file)
+	|| fputc(',', file) == EOF
+	|| write_uint64_t(header->data_len, file)
+	|| fputc(',', file) == EOF
+	|| write_tm(&header->create_date, file)
+	|| fputc(',', file) == EOF
+	|| write_uint8_t(header->entropy_type, file)
+	|| fputc(',', file) == EOF
+	|| write_uint8_t(header->permission, file)
+	|| fputc('}', file) == EOF)
     {
 	fputs("File write error", stderr);
 	return 1;
@@ -18,11 +31,19 @@ ent_header_t* ent_header_read(FILE* file)
 {
     ent_header_t* ret = (ent_header_t*)malloc(sizeof(ent_header_t));
     
-    if (fread(ret, sizeof(ent_header_t), 1, file) != 1)
-    {
-	fputs("File input Error", stderr);
-	return NULL;
-    }
+    skip(file, '{');
+    ret->kid = read_uint64_t(file);
+    skip(file, ',');
+    ret->start_pos = read_uint64_t(file);
+    skip(file, ',');
+    ret->data_len = read_uint64_t(file);
+    skip(file, ',');
+    ret->create_date = read_tm(file);
+    skip(file, ',');
+    ret->entropy_type = read_uint8_t(file);
+    skip(file, ',');
+    ret->permission = read_uint8_t(file);
+    skip(file, '}');
 
     /* Check expiration date */
     {
@@ -91,8 +112,19 @@ ent_t* ent_create(ent_header_t* header, char* data)
     return ret;
 }
 
-int ent_print(ent_t* ent)
+int ent_write(ent_t* ent, FILE* file)
 {
+    if (ent_header_write(ent->head, file)
+	|| fwrite(ent->data, sizeof(char), ent->head->data_len, file) != ent->head->data_len)
+    {
+	fputs("Error writing key file", stderr);
+	return -1;
+    }
     
+    return 0;
+}
+
+int ent_print(ent_t* ent)
+{    
     return ent_header_print(ent->head) +printf("%.*s", (int)ent->head->data_len, ent->data);
 }

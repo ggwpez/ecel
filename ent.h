@@ -31,8 +31,10 @@ typedef struct  __attribute__((__packed__))
     len_t start_pos;		/* Where the file starts, if a file got splittet into multiple files or when using std-streams */
     len_t data_len;		/* The length of the entropy data */
     struct tm create_date;      /* UTC Creation date. Always use recent data. */
-    ent_create_t entropy_type;	/* Method used to create the data */
-    ent_rw_t permission;	/* Read ^ Write file */
+    /* ent_create_t */
+    uint8_t entropy_type;	/* Method used to create the data */
+    /* ent_rw_t */
+    uint8_t permission;	        /* Read ^ Write file */
 } ent_header_t;
 
 ent_header_t* ent_header_read(FILE* file);
@@ -46,5 +48,6 @@ typedef struct
 } ent_t;
 
 ent_t* ent_read(FILE* file);
+int ent_write(ent_t* ent, FILE* file);
 ent_t* ent_create(ent_header_t* header, char* data);
 int ent_print(ent_t* ent);

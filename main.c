@@ -3,6 +3,7 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 #include <getopt.h>
 #include <stdlib.h>
@@ -39,7 +40,7 @@ main(int argc, char** argv)
     
     FILE* key_file   = NULL,
 	* input_file = NULL,
-	* raw_file   = NULL;
+	* raw_file   = stdin;
 
     
     static int mode = -1;
@@ -97,15 +98,24 @@ main(int argc, char** argv)
 		break;
 	    
 	    case 'r':
-		raw_file = open_file(optarg);
+		if (! strcmp("-", optarg)) /* - denotes stdin */
+		    raw_file = stdin;
+		else
+		    raw_file = open_file(optarg);
 		break;
 	    
 	    case 'k':
-		key_file = open_file(optarg);
+		if (! strcmp("-", optarg))
+		    key_file = stdin;
+		else
+		    key_file = open_file(optarg);
 		break;
 
 	    case 'm':
-		input_file = open_file(optarg);
+		if (! strcmp("-", optarg))
+		    input_file = stdin;
+		else
+		    input_file = open_file(optarg);
 		break;
 
 	    case '?':
@@ -140,7 +150,7 @@ main(int argc, char** argv)
 	}
 
 	message_t* msg = message_create(*arg_kid, *arg_pos, raw_len, raw_buffer);
-	message_print(msg);
+	message_write(msg, stdout);
     }
     else if (mode == 2)		/* Or better a key? */
     {
@@ -165,28 +175,34 @@ main(int argc, char** argv)
 
 	ent_header_t* header = ent_header_create(*arg_kid, *arg_pos, raw_len, NULL, EXTERN, 0);
 	ent_t* key = ent_create(header, raw_buffer);
-	ent_print(key);
+	ent_write(key, stdout);
     }
-    /* else if (mode == 0) */
-    /* { */
-    /* 	if (! key_file && ! input_file)	/\* Both streams missing? *\/ */
-    /* 	{ */
-    /* 	    print_usage(); */
-    /* 	    return 1; */
-    /* 	} else if ((bool)key_file ^ (bool)input_file)	/\* Only one missing, take stdin *\/ */
-    /* 	{ */
-    /* 	    if (! key_file) key_file = stdin; */
-    /* 	    if (! input_file) input_file = stdin; */
-    /* 	} */
+    else if (mode == 0)
+    {
+    	if (! key_file && ! input_file)	/* Both streams missing? */
+    	{
+    	    print_usage();
+    	    return 1;
+	} else if (key_file == stdin && key_file == input_file)
+	{
+	    fputs("Only one stream can read from stdin simultaniously", stderr);
+	    return 1;
+    	}
+	else if ((bool)key_file ^ (bool)input_file)	/* Only one missing, take stdin */
+    	{
+    	    if (! key_file) key_file = stdin;
+    	    if (! input_file) input_file = stdin;
+    	}
 
-    /* 	message_t* msg = message_read(input_file); */
-    /* 	ent_t* key = ent_read(key_file); */
-    
-    /* 	puts("MSG:"); */
-    /* 	message_print(msg); */
-    /* 	puts("\nKEY:"); */
-    /* 	ent_print(key); */
-    /* } */
+    	message_t* msg = message_read(input_file);
+    	ent_t* key = ent_read(key_file);
+
+	message_print(msg);
+	puts("\n");
+	ent_print(key);
+//  	message_encrypt_xor(msg, key);
+//	message_write(msg, stdout);
+    }
     else
 	print_usage();
 
