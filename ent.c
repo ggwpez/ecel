@@ -7,17 +7,17 @@
 int ent_header_write(ent_header_t const* header, FILE* file)
 {
     if (fputc('{', file) == EOF
-	|| write_uint64_t(header->kid, file)
+	|| write_uint(header->kid, sizeof(kid_t) << 3, file)
 	|| fputc(',', file) == EOF
-	|| write_uint64_t(header->start_pos, file)
+	|| write_uint(header->start_pos, sizeof(len_t) << 3, file)
 	|| fputc(',', file) == EOF
-	|| write_uint64_t(header->data_len, file)
+	|| write_uint(header->data_len, sizeof(len_t) << 3, file)
 	|| fputc(',', file) == EOF
 	|| write_tm(&header->create_date, file)
 	|| fputc(',', file) == EOF
-	|| write_uint8_t(header->entropy_type, file)
+	|| write_uint(header->entropy_type, 4, file)
 	|| fputc(',', file) == EOF
-	|| write_uint8_t(header->permission, file)
+	|| write_uint(header->permission, 4, file)
 	|| fputc('}', file) == EOF)
     {
 	fputs("File write error", stderr);
@@ -32,17 +32,17 @@ ent_header_t* ent_header_read(FILE* file)
     ent_header_t* ret = (ent_header_t*)malloc(sizeof(ent_header_t));
     
     skip(file, '{');
-    ret->kid = read_uint64_t(file);
+    ret->kid = read_uint(sizeof(kid_t) << 3, file);
     skip(file, ',');
-    ret->start_pos = read_uint64_t(file);
+    ret->start_pos = read_uint(sizeof(len_t) << 3, file);
     skip(file, ',');
-    ret->data_len = read_uint64_t(file);
+    ret->data_len = read_uint(sizeof(len_t) << 3, file);
     skip(file, ',');
     ret->create_date = read_tm(file);
     skip(file, ',');
-    ret->entropy_type = read_uint8_t(file);
+    ret->entropy_type = read_uint(4, file);
     skip(file, ',');
-    ret->permission = read_uint8_t(file);
+    ret->permission = read_uint(4, file);
     skip(file, '}');
 
     /* Check expiration date */

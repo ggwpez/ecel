@@ -8,9 +8,11 @@
 int message_write(message_t const* msg, FILE* file)
 {
     if (fputc('[', file) == EOF
-	|| write_uint64_t(msg->id, file)//fwrite(&msg->id, sizeof(kid_t), 1, file) != 1
+	|| write_uint(msg->id, sizeof(kid_t) << 3, file)
 	|| fputc(',', file) == EOF
-	|| write_uint64_t(msg->len, file)//fwrite(&msg->len, sizeof(len_t), 1, file) != 1
+	|| write_uint(msg->start_pos, sizeof(len_t) << 3, file)
+	|| fputc(',', file) == EOF
+	|| write_uint(msg->len, sizeof(len_t) << 3, file)
 	|| fputc(']', file) == EOF
 	|| fwrite(msg->data, sizeof(char), msg->len, file) != msg->len)
     {
@@ -33,14 +35,16 @@ message_t* message_read(FILE* file)
     message_t* ret = (message_t*)malloc(sizeof(message_t));
     
     skip(file, '[');
-    ret->id = read_uint64_t(file);
+    ret->id = read_uint(sizeof(kid_t) << 3, file);
     skip(file, ',');
-    ret->len = read_uint64_t(file);
+    ret->start_pos = read_uint(sizeof(len_t) << 3, file);
+    skip(file, ',');
+    ret->len = read_uint(sizeof(len_t) << 3, file);
     skip(file, ']');
 
     ret->data = (char*)malloc(sizeof(char) *ret->len);
     
-    if (fread(ret->data, ret->len, 1, file) != 1)
+    if (fread(ret->data, sizeof(char), ret->len, file) != ret->len)
     {
 	fputs("File read error", stderr);
 	return NULL;
@@ -71,7 +75,7 @@ int message_encrypt_xor(message_t* msg, ent_t* entropy)
     }
     else if ((msg->start_pos +msg->len) > (entropy->head->start_pos +entropy->head->data_len))
     {
-	fputs("Insufficient entopy data left", stderr);
+	fprintf(stderr, "Insufficient entopy data left:\nmsg->pos: %" PRIx64 " msg->len: %" PRIx64 "\nent->pos: %" PRIx64 " ent->len: %" PRIx64 "\n", msg->start_pos, msg->len, entropy->head->start_pos, entropy->head->data_len);
 	return -1;
     }
     
@@ -85,5 +89,5 @@ int message_encrypt_xor(message_t* msg, ent_t* entropy)
 
 int message_print(message_t* msg)
 {
-    printf("[%" PRIx64 ",%" PRIx64 "]%s\n", msg->id, msg->start_pos, msg->data);
+    printf("[kid %" PRIx64 ",pos %" PRIx64 ",len %" PRIx64 "]%s\n", msg->id, msg->start_pos,msg->len, msg->data);
 }

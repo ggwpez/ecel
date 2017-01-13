@@ -1,83 +1,62 @@
 #include "io.h"
 
+#include <assert.h>
+
 struct tm read_tm(FILE* file)
 {
-    struct tm time;
-    return time;
+	struct tm time;
+	return time;
 }
 
 int write_tm(struct tm const* time, FILE* file)
 {
-    return 0;
+	return 0;
 }
 
-uint8_t read_uint8_t(FILE* file)
+#define IHEX(c) ((c) <= '9' ? (c) -'0' : (c) -'a' +10)
+
+uint64_t read_uint(int bits, FILE* file)
 {
-    uint8_t ret = 0;
-    
-    for (size_t i = 0; i < sizeof(uint8_t) << 1; ++i)
-    {
+	uint64_t ret = 0;
+	assert(bits && !(bits % 4) && bits <= 64);
+
+	for (size_t i = 0; i < bits >> 2; ++i)
+	{
 	char c = fgetc(file);
 	if (c == EOF)
 	{
-	    fputs("Unawaited EOF", stderr);
-	    exit(-1);
+		fputs("Unawaited EOF", stderr);
+		exit(-1);
 	}
 	else if (! isxdigit(c))
 	{
-	    fprintf(stderr, "Currently only works with hex input but got: '%c'", c);
-	    exit(-1);
+		fprintf(stderr, "Currently only works with hex input but got: '%c'", c);
+		exit(-1);
 	}
 	else
-	    ret = (ret << 4) | ((c -'0') & 15);
-    }
+	{
+		int conv = IHEX(c);
+		ret = (ret << 4) | conv;
+	}
+	}
 
-    return ret;
+	return ret;
 }
 
-int write_uint8_t(uint8_t v, FILE* file)
+#define HEX(c) ((c) <= 9 ? '0' +(c) : 'a' +(c) -10)
+
+int write_uint(uint64_t v, int bits, FILE* file)
 {
-    if (fprintf(file, "%*.*" PRIx8, 2, 2, v) != 2)
-    {
+	assert(bits && !(bits % 4) && bits <= 64);
+	int nibbles = bits >> 2;
+
+	/*if (fprintf(file, "%*.*" PRIx64, nibbles, nibbles, v) != nibbles)
+	{
 	fputs("Could not fprintf", stderr);
 	return 1;
-    }
-    
-    return 0;
+	}*/
+	for (int i = nibbles -1; i >= 0; --i)
+	fputc(HEX((v >> (i << 2)) & 15), file);
 
-}
-
-uint64_t read_uint64_t(FILE* file)
-{
-    uint64_t ret = 0;
-    
-    for (size_t i = 0; i < sizeof(uint64_t) << 1; ++i)
-    {
-	char c = fgetc(file);
-	if (c == EOF)
-	{
-	    fputs("Unawaited EOF", stderr);
-	    exit(-1);
-	}
-	else if (! isxdigit(c))
-	{
-	    fprintf(stderr, "Currently only works with hex input but got: '%c'", c);
-	    exit(-1);
-	}
-	else
-	    ret = (ret << 4) | ((c -'0') & 15);
-    }
-
-    return ret;
-}
-
-int write_uint64_t(uint64_t v, FILE* file)
-{
-    if (fprintf(file, "%*.*" PRIx64, 16, 16, v) != 16)
-    {
-	fputs("Could not fprintf", stderr);
-	return 1;
-    }
-    
-    return 0;
+	return 0;
 }

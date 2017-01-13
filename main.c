@@ -14,7 +14,7 @@
 FILE* open_file(char const* path)
 {
     FILE* file = fopen(path, "r");
-    
+
     if (! file)
     {
 	fprintf(stderr, "File not found: '%s'\n", path);
@@ -29,7 +29,7 @@ int
 print_usage()
 {
     fputs("Usage:\n\tecel -kkey -iinput\n", stderr);
-    
+
     return 0;
 }
 
@@ -37,12 +37,12 @@ int
 main(int argc, char** argv)
 {
     assert(sizeof(len_t) >= sizeof(size_t));
-    
+
     FILE* key_file   = NULL,
 	* input_file = NULL,
 	* raw_file   = stdin;
 
-    
+
     static int mode = -1;
     kid_t* arg_kid = NULL;
     len_t* arg_pos = NULL;
@@ -56,7 +56,7 @@ main(int argc, char** argv)
 		    {"create-key", no_argument, &mode, 2},
 		    {"create-msg", no_argument, &mode, 1},
 		    {"encrypt",    no_argument, &mode, 0},
-		
+
 		    {"raw",        required_argument, 0, 'r'},
 		    {"key",        required_argument, 0, 'k'},
 		    {"msg",        required_argument, 0, 'm'},
@@ -91,19 +91,19 @@ main(int argc, char** argv)
 		arg_pos = (len_t*)malloc(sizeof(len_t));
 		*arg_pos = strtoull(optarg, NULL, 16);
 		break;
-		
+
 	    case 'i':
 		arg_kid = (kid_t*)malloc(sizeof(kid_t));
 		*arg_kid = strtoull(optarg, NULL, 16);
 		break;
-	    
+
 	    case 'r':
 		if (! strcmp("-", optarg)) /* - denotes stdin */
 		    raw_file = stdin;
 		else
 		    raw_file = open_file(optarg);
 		break;
-	    
+
 	    case 'k':
 		if (! strcmp("-", optarg))
 		    key_file = stdin;
@@ -164,7 +164,7 @@ main(int argc, char** argv)
 	    fputs("Create-key needs a --kid=123 and --pos=123", stderr);
 	    return 1;
 	}
-	
+
 	char* raw_buffer = (char*)malloc(BUFF_SIZE *sizeof(char));
 	ssize_t raw_len;
 	if ((raw_len = fread(raw_buffer, sizeof(char), BUFF_SIZE, raw_file)) < 0)
@@ -179,35 +179,32 @@ main(int argc, char** argv)
     }
     else if (mode == 0)
     {
-    	if (! key_file && ! input_file)	/* Both streams missing? */
-    	{
-    	    print_usage();
-    	    return 1;
+	if (! key_file && ! input_file)	/* Both streams missing? */
+	{
+	    print_usage();
+	    return 1;
 	} else if (key_file == stdin && key_file == input_file)
 	{
 	    fputs("Only one stream can read from stdin simultaniously", stderr);
 	    return 1;
-    	}
+	}
 	else if ((bool)key_file ^ (bool)input_file)	/* Only one missing, take stdin */
-    	{
-    	    if (! key_file) key_file = stdin;
-    	    if (! input_file) input_file = stdin;
-    	}
+	{
+	    if (! key_file) key_file = stdin;
+	    if (! input_file) input_file = stdin;
+	}
 
-    	message_t* msg = message_read(input_file);
-    	ent_t* key = ent_read(key_file);
+	message_t* msg = message_read(input_file);
+	ent_t* key = ent_read(key_file);
 
-	message_print(msg);
-	puts("\n");
-	ent_print(key);
-//  	message_encrypt_xor(msg, key);
-//	message_write(msg, stdout);
+  	message_encrypt_xor(msg, key);
+	message_write(msg, stdout);
     }
     else
 	print_usage();
 
     if (arg_kid) free(arg_kid);
     if (arg_pos) free(arg_pos);
-    
+
     return 0;
 }
