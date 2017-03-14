@@ -8,14 +8,16 @@
 
 int message_write(message_t const* msg, FILE* file)
 {
+	assert(msg && file);
+
 	if (fputc('[', file) == EOF
-	|| write_uint(msg->id, sizeof(kid_t) << 3, file)
-	|| fputc(',', file) == EOF
-	|| write_uint(msg->start_pos, sizeof(len_t) << 3, file)
-	|| fputc(',', file) == EOF
-	|| write_uint(msg->len, sizeof(len_t) << 3, file)
-	|| fputc(']', file) == EOF
-	|| fwrite(msg->data, sizeof(char), msg->len, file) != msg->len)
+		|| write_uint(msg->id, sizeof(kid_t) << 3, file)
+		|| fputc(',', file) == EOF
+		|| write_uint(msg->start_pos, sizeof(len_t) << 3, file)
+		|| fputc(',', file) == EOF
+		|| write_uint(msg->len, sizeof(len_t) << 3, file)
+		|| fputc(']', file) == EOF
+		|| fwrite(msg->data, sizeof(char), msg->len, file) != msg->len)
 	{
 		return fail(0, "File write error");
 	}
@@ -32,6 +34,8 @@ int message_write(message_t const* msg, FILE* file)
  * */
 message_t* message_read(FILE* file)
 {
+	assert(file);
+
 	message_t* ret = (message_t*)malloc(sizeof(message_t));
 	if (! ret)
 		return fail(0, "Malloc error"), NULL;
@@ -58,7 +62,7 @@ message_t* message_read(FILE* file)
 
 message_t* message_create(kid_t id, len_t start_pos, len_t len, char* data)
 {
-	assert(len && data);
+	assert(data);
 	message_t* ret = (message_t*)malloc(sizeof(message_t));
 	if (! ret)
 		return fail(0, "Malloc error"), NULL;
@@ -71,9 +75,18 @@ message_t* message_create(kid_t id, len_t start_pos, len_t len, char* data)
 	return ret;
 }
 
+void message_delete(message_t* msg)
+{
+	assert(msg);
+
+	free(msg->data);
+	free(msg);
+}
 
 int message_encrypt_xor(message_t* msg, ent_t* entropy)
 {
+	assert(msg && entropy);
+
 	if (msg->id != entropy->head->kid)
 		return fail(1, "Missmatching key-ids\nKID of message: 0x%" PRIx64 "\nKID of entropy: 0x%" PRIx64, msg->id, entropy->head->kid);
 	if (msg->start_pos < entropy->head->start_pos)
@@ -89,5 +102,7 @@ int message_encrypt_xor(message_t* msg, ent_t* entropy)
 
 int message_print(message_t* msg)
 {
+	assert(msg);
+
 	return printf("[kid %" PRIx64 ",pos %" PRIx64 ",len %" PRIx64 "]%s\n", msg->id, msg->start_pos, msg->len, msg->data);
 }

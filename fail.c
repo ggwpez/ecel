@@ -1,12 +1,15 @@
 #include "fail.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 int unalert = 0;
 
-int fail(int minor, char const* format, ...)
+int fail(int minor_failure, char const* format, ...)
 {
+	assert(format);
+
 	va_list args;
 	va_start(args, format);
 
@@ -17,12 +20,14 @@ int fail(int minor, char const* format, ...)
 	} while (ptr);
 
 	va_end(args);
-	return vfail(minor, format, args);
+	return vfail(minor_failure, format, args);
 }
 
-int vfail(int minor, const char* format, va_list args)
+int vfail(int minor_failure, const char* format, va_list args)
 {
-	if (minor && unalert)
+	assert(format && args);
+
+	if (minor_failure && unalert)
 	{
 		fprintf(stderr, "%s: ", "Ignoring error");
 		vfprintf(stderr, format, args);
@@ -33,12 +38,11 @@ int vfail(int minor, const char* format, va_list args)
 	else
 	{
 		vfprintf(stderr, format, args);
-		if (minor)
+		if (minor_failure)
 			fputs("\nPass --unalert to ignore minor errors\n", stderr);
 		else
 			fputs("\n", stderr);
 
-		exit(-1);
-		return -1;
+		exit(EXIT_FAILURE);
 	}
 }

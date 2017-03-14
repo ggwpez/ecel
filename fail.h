@@ -7,6 +7,6 @@ extern int unalert;
 /// \brief fail
 /// \param minor Is it only a minor error, wich we can ignore, if unalert is passed?
 ///
-int fail(int minor, char const* format, ...);
+int fail(int minor_failure, char const* format, ...);
 
-int vfail(int minor, char const* format, va_list args);
+int vfail(int minor_failure, char const* format, va_list args);
