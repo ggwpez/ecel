@@ -52,7 +52,7 @@ ent_header_t* ent_header_read(FILE* file)
 	return ret;
 }
 
-ent_header_t* ent_header_create(kid_t kid, len_t start_pos, len_t data_len, struct tm* create_date)
+ent_header_t* ent_header_create(kid_t kid, len_t start_pos, struct tm* create_date)
 {
 	ent_header_t* ret = (ent_header_t*)malloc(sizeof(ent_header_t));
 	if (! ret)
@@ -60,7 +60,7 @@ ent_header_t* ent_header_create(kid_t kid, len_t start_pos, len_t data_len, stru
 
 	ret->kid = kid;
 	ret->start_pos = start_pos;
-	ret->data_len = data_len;
+	ret->data_len = -1;
 	if (! create_date)
 	{
 		time_t ltime;
@@ -83,11 +83,11 @@ void ent_header_delete(ent_header_t* header)
 	free(header);
 }
 
-int ent_header_print(ent_header_t* header)
+int ent_header_print(ent_header_t* header, FILE* out)
 {
 	assert(header);
 
-	return printf(
+	return fprintf(out,
 			"kid: %"  PRIx64 "\n\
 			start_pos: %" PRIx64 "\n\
 			data_len: %" PRIx64 "\n\
@@ -102,26 +102,35 @@ ent_t* ent_read(FILE* file)
 	if (! head)
 		return fail(0, "Malloc error"), NULL;
 
-	char* buffer = (char*)malloc(head->data_len);
-	if (! buffer)
-		return fail(0, "Malloc error"), NULL;
-
-	if (fread(buffer, sizeof(char), head->data_len, file) != head->data_len)
-		return fail(0, "File input Error"), NULL;
-
-	return ent_create(head, buffer);
+	return ent_create(head, file);
 }
 
-ent_t* ent_create(ent_header_t* header, char* data)
+ent_t* ent_create(ent_header_t* header, FILE* file)
 {
-	assert(header && data);
+	assert(header && file);
 
 	ent_t* ret = (ent_t*)malloc(sizeof(ent_t));
 	if (! ret)
 		return fail(0, "Malloc error"), NULL;
 
 	ret->head = header;
-	ret->data = data;
+	ret->file = file;
+
+	//fprintf(stderr, "Keystream is seekable: %s\n", is_not_seekable(file) ? "no" : "yes");
+	// Is it a stream like stdin where we dont know the size?
+	// Then we have to read all
+	if (header->data_len == -1)
+	{
+		if (is_not_seekable(file))
+		{
+			assert(ret->buffer = read_file(file, &ret->head->data_len));
+		}
+		else
+		{
+			ret->head->data_len = flen(file);
+			ret->buffer = NULL;
+		}
+	}
 
 	return ret;
 }
@@ -131,7 +140,9 @@ void ent_delete(ent_t* ent)
 	assert(ent);
 
 	ent_header_delete(ent->head);
-	free(ent->data);
+	fflush(ent->file);
+	if (ent->buffer)
+		free(ent->buffer);
 	free(ent);
 }
 
@@ -139,18 +150,19 @@ int ent_write(ent_t* ent, FILE* file)
 {
 	assert(ent && file);
 
-	if (ent_header_write(ent->head, file)
-		|| fwrite(ent->data, sizeof(char), ent->head->data_len, file) != ent->head->data_len)
+	if (ent_header_write(ent->head, file))
+	{
+		return fail(0, "Error writing key header file");
+	}
+	if (ent->buffer)
+	{
+		if (fwrite(ent->buffer, 1, ent->head->data_len, file) != ent->head->data_len)
+			return fail(0, "File write error");
+	}
+	else if (fsplice(ent->file, file, ent->head->data_len) != ent->head->data_len)
 	{
 		return fail(0, "Error writing key file");
 	}
 
 	return 0;
-}
-
-int ent_print(ent_t* ent)
-{
-	assert(ent);
-
-	return ent_header_print(ent->head) +printf("%.*s", (unsigned)ent->head->data_len, ent->data);
 }

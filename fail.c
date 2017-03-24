@@ -6,24 +6,19 @@
 
 int unalert = 0;
 
-int fail(int minor_failure, char const* format, ...)
+int _fail(int minor_failure, char const* format, ...)
 {
 	assert(format);
-
 	va_list args;
+
 	va_start(args, format);
-
-	char* ptr = 0;
-	do
-	{
-		ptr	= va_arg(args, char*);
-	} while (ptr);
-
+	int ret = _vfail(minor_failure, format, args);
 	va_end(args);
-	return vfail(minor_failure, format, args);
+
+	return ret;
 }
 
-int vfail(int minor_failure, const char* format, va_list args)
+int _vfail(int minor_failure, const char* format, va_list args)
 {
 	assert(format && args);
 
