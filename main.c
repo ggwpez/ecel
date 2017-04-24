@@ -21,7 +21,7 @@ static struct
 	int argc;
 	char** argv;
 	FILE* key_file,
-		* input_file,
+		* msg_file,
 		* raw_file,
 		* out_file;
 
@@ -29,6 +29,12 @@ static struct
 	int verbose;
 	int mode, crypto_mode;
 } state;
+
+#define mENCRYPT	0
+#define mCREATE_MSG 1
+#define mCREATE_KEY 2
+#define mINFO_MSG	3
+#define mINFO_KEY	4
 
 static void state_init(int argc, char** argv);
 static void state_cleanup(void);
@@ -49,8 +55,10 @@ main(int argc, char** argv)
 			static struct option long_options[] =
 			{
 				/* These options set a flag. */
-				{ "create-key", no_argument, &state.mode, 2 },
-				{ "create-msg", no_argument, &state.mode, 1 },
+				{ "create-key", no_argument, &state.mode, mCREATE_KEY },
+				{ "create-msg", no_argument, &state.mode, mCREATE_MSG },
+				{ "info-key",	no_argument, &state.mode, mINFO_KEY },
+				{ "info-msg",	no_argument, &state.mode, mINFO_MSG },
 				{ "encrypt",    required_argument, 0, 'e' },
 
 				{ "verbose",    optional_argument, 0, 'v' },
@@ -119,9 +127,9 @@ main(int argc, char** argv)
 				case 'm':
 				{
 					if (! strcmp("-", optarg))
-						state.input_file = stdin;
+						state.msg_file = stdin;
 					else
-						state.input_file = open_file(optarg, "r");
+						state.msg_file = open_file(optarg, "r");
 				} break;
 				case 'h':
 				{
@@ -147,7 +155,33 @@ main(int argc, char** argv)
 	if (state.verbose)
 		print_call();
 
-	if (state.mode == 1)		/* Shall we create a message? */
+	if (state.mode == mINFO_MSG)
+	{
+		if (! state.msg_file)
+			state.msg_file = stdin;
+		// TODO: check that no other file is set, since it would be ignored
+
+		message_t* msg = message_read(state.msg_file);
+		assert(msg);
+
+		message_print(msg, state.out_file);
+		fputc('\n', state.out_file);
+		message_delete(msg);
+	}
+	else if (state.mode == mINFO_KEY)
+	{
+		if (! state.key_file)
+			state.key_file = stdin;
+		// TODO: check that no other file is set, since it would be ignored
+
+		kkey_t* key = key_read(state.key_file);
+		assert(key);
+
+		key_print(key, state.out_file);
+		fputc('\n', state.out_file);
+		key_delete(key);
+	}
+	else if (state.mode == mCREATE_MSG)		/* Shall we create a message? */
 	{
 		if (! state.raw_file)
 			return fail(0, "Create-msg needs --raw=<file>");
@@ -160,46 +194,46 @@ main(int argc, char** argv)
 		message_write(msg, state.out_file, 0);
 		message_delete(msg);
 	}
-	else if (state.mode == 2)		/* Or better a key? */
+	else if (state.mode == mCREATE_KEY)		/* Or better a key? */
 	{
 		if (! state.raw_file)
 			return fail(0, "Create-key needs --raw=<file>");
 		else if (! state.arg_kid)
 			return fail(0, "Create-key needs --kid=<number>");
 
-		ent_header_t* header = ent_header_create(*state.arg_kid, arg_pos, NULL);
-		ent_t* key = ent_create(header, state.raw_file);
+		key_header_t* header = key_header_create(*state.arg_kid, arg_pos, NULL);
+		kkey_t* key = key_create(header, state.raw_file);
 		assert(key);
 
-		ret = ent_write(key, state.out_file);
-		ent_delete(key);
+		ret = key_write(key, state.out_file, 0);
+		key_delete(key);
 	}
-	else if (state.mode == 0)		/* Encrypt */
+	else if (state.mode == mENCRYPT)		/* Encrypt */
 	{
-		if (! state.key_file && ! state.input_file)	/* Both streams missing? */
+		if (! state.key_file && ! state.msg_file)	/* Both streams missing? */
 		{
 			return fail(0, "key and input cant be both NULL in encrypt mode");
 		}
-		else if (state.key_file == stdin && state.key_file == state.input_file)
+		else if (state.key_file == stdin && state.key_file == state.msg_file)
 		{
 			return fail(0, "Only one stream can read from stdin simultaniously");
 		}
-		else if ((bool)state.key_file ^ (bool)state.input_file)	/* Only one missing? Take stdin */
+		else if ((bool)state.key_file ^ (bool)state.msg_file)	/* Only one missing? Take stdin */
 		{
 			if (! state.key_file)
 				state.key_file = stdin;
-			if (! state.input_file)
-				state.input_file = stdin;
+			if (! state.msg_file)
+				state.msg_file = stdin;
 		}
 
-		message_t* msg = message_read(state.input_file);
-		ent_t* key = ent_read(state.key_file);
+		message_t* msg = message_read(state.msg_file);
+		kkey_t* key = key_read(state.key_file);
 		assert(msg && key);
 
 		ret = message_merge(get_crypto(state.crypto_mode), msg, key, state.out_file);
 
 		message_delete(msg);
-		ent_delete(key);
+		key_delete(key);
 	}
 	else
 		return fail(0, "No mode set, see --help");
@@ -211,11 +245,12 @@ static void state_init(int argc, char** argv)
 {
 	state.argc = argc;
 	state.argv = argv;
-	state.key_file = state.input_file = NULL;
+	state.key_file = state.msg_file = NULL;
 	state.raw_file = stdin;
 	state.out_file = stdout;
 	state.arg_kid  = NULL;
-	state.verbose = state.crypto_mode = 0;
+	state.verbose = mENCRYPT;
+	state.crypto_mode = 0;
 	state.mode = -1;
 }
 
@@ -223,8 +258,8 @@ static void state_cleanup(void)
 {
 	if (state.key_file && state.key_file != stdin)
 		fclose(state.key_file);
-	if (state.input_file && state.input_file != stdin)
-		fclose(state.input_file);
+	if (state.msg_file && state.msg_file != stdin)
+		fclose(state.msg_file);
 	if (state.raw_file && state.raw_file != stdin)
 		fclose(state.raw_file);
 	if (state.out_file && state.out_file != stdout)

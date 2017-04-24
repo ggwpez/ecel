@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 
-int ent_header_write(ent_header_t const* header, FILE* file)
+int ent_header_write(key_header_t const* header, FILE* file)
 {
 	assert(header && file);
 
@@ -26,11 +26,11 @@ int ent_header_write(ent_header_t const* header, FILE* file)
 	return 0;
 }
 
-ent_header_t* ent_header_read(FILE* file)
+key_header_t* key_header_read(FILE* file)
 {
 	assert(file);
 
-	ent_header_t* ret = (ent_header_t*)malloc(sizeof(ent_header_t));
+	key_header_t* ret = (key_header_t*)malloc(sizeof(key_header_t));
 	if (! ret)
 		return fail(0, "Malloc error"), NULL;
 
@@ -52,9 +52,9 @@ ent_header_t* ent_header_read(FILE* file)
 	return ret;
 }
 
-ent_header_t* ent_header_create(kid_t kid, len_t start_pos, struct tm* create_date)
+key_header_t* key_header_create(kid_t kid, len_t start_pos, struct tm* create_date)
 {
-	ent_header_t* ret = (ent_header_t*)malloc(sizeof(ent_header_t));
+	key_header_t* ret = (key_header_t*)malloc(sizeof(key_header_t));
 	if (! ret)
 		return fail(0, "Malloc error"), NULL;
 
@@ -76,14 +76,14 @@ ent_header_t* ent_header_create(kid_t kid, len_t start_pos, struct tm* create_da
 	return ret;
 }
 
-void ent_header_delete(ent_header_t* header)
+void key_header_delete(key_header_t* header)
 {
 	assert(header);
 
 	free(header);
 }
 
-int ent_header_print(ent_header_t* header, FILE* out)
+int key_header_print(key_header_t* header, FILE* out)
 {
 	assert(header);
 
@@ -94,22 +94,22 @@ int ent_header_print(ent_header_t* header, FILE* out)
 			create_date: %s\n", header->kid, header->start_pos, header->data_len, asctime(&header->create_date));
 }
 
-ent_t* ent_read(FILE* file)
+kkey_t* key_read(FILE* file)
 {
 	assert(file);
 
-	ent_header_t* head = ent_header_read(file);
+	key_header_t* head = key_header_read(file);
 	if (! head)
 		return fail(0, "Malloc error"), NULL;
 
-	return ent_create(head, file);
+	return key_create(head, file);
 }
 
-ent_t* ent_create(ent_header_t* header, FILE* file)
+kkey_t* key_create(key_header_t* header, FILE* file)
 {
 	assert(header && file);
 
-	ent_t* ret = (ent_t*)malloc(sizeof(ent_t));
+	kkey_t* ret = (kkey_t*)malloc(sizeof(kkey_t));
 	if (! ret)
 		return fail(0, "Malloc error"), NULL;
 
@@ -135,18 +135,18 @@ ent_t* ent_create(ent_header_t* header, FILE* file)
 	return ret;
 }
 
-void ent_delete(ent_t* ent)
+void key_delete(kkey_t* ent)
 {
 	assert(ent);
 
-	ent_header_delete(ent->head);
+	key_header_delete(ent->head);
 	fflush(ent->file);
 	if (ent->buffer)
 		free(ent->buffer);
 	free(ent);
 }
 
-int ent_write(ent_t* ent, FILE* file)
+int key_write(kkey_t* ent, FILE* file, int header_only)
 {
 	assert(ent && file);
 
@@ -154,15 +154,28 @@ int ent_write(ent_t* ent, FILE* file)
 	{
 		return fail(0, "Error writing key header file");
 	}
-	if (ent->buffer)
+	if (! header_only)
 	{
-		if (fwrite(ent->buffer, 1, ent->head->data_len, file) != ent->head->data_len)
-			return fail(0, "File write error");
-	}
-	else if (fsplice(ent->file, file, ent->head->data_len) != ent->head->data_len)
-	{
-		return fail(0, "Error writing key file");
+		if (ent->buffer)
+		{
+			if (fwrite(ent->buffer, 1, ent->head->data_len, file) != ent->head->data_len)
+				return fail(0, "File write error");
+		}
+		else if (fsplice(ent->file, file, ent->head->data_len) != ent->head->data_len)
+		{
+			return fail(0, "Error writing key file");
+		}
 	}
 
 	return 0;
+}
+
+int key_print(kkey_t* ent, FILE* out)
+{
+	assert(ent && out);
+
+	write_uint(ent->head->kid, sizeof(kid_t) << 3, out), fprintf(out, "  "),
+	write_uint(ent->head->start_pos, sizeof(len_t) << 3, out), fprintf(out, "  "),
+	write_uint(ent->head->data_len, sizeof(len_t) << 3, out), fprintf(out, "  "),
+	fprintf(out, "%i-%i-%i", ent->head->create_date.tm_year +1900, ent->head->create_date.tm_mon +1, ent->head->create_date.tm_mday);
 }

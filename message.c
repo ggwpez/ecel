@@ -31,7 +31,6 @@ int message_write(message_t const* msg, FILE* file, int header_only)
 			return fail(0, "File write error");
 	}
 
-
 	return 0;
 }
 
@@ -99,7 +98,7 @@ void message_delete(message_t* msg)
 	free(msg);
 }
 
-int message_merge(crypto_ptr_t fptr, message_t* msg, ent_t* ent, FILE* out)
+int message_merge(crypto_ptr_t fptr, message_t* msg, kkey_t* ent, FILE* out)
 {
 	assert(msg && ent);
 
@@ -129,4 +128,13 @@ int message_merge(crypto_ptr_t fptr, message_t* msg, ent_t* ent, FILE* out)
 	fseeko(ent->file, pos2, SEEK_SET);
 
 	return 0;
+}
+
+int message_print(message_t* msg, FILE* out)
+{
+	assert(msg && out);
+
+	write_uint(msg->id, sizeof(kid_t) << 3, out), fprintf(out, "  "),
+	write_uint(msg->start_pos, sizeof(len_t) << 3, out), fprintf(out, "  "),
+	write_uint(msg->len, sizeof(len_t) << 3, out), fprintf(out, "  ");
 }
