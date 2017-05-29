@@ -10,7 +10,7 @@ int ent_header_write(key_header_t const* header, FILE* file)
 {
 	assert(header && file);
 
-	if (fputc('{', file) == EOF
+	if (   fputc('{', file) == EOF
 		|| write_uint(header->kid, sizeof(kid_t) << 3, file)
 		|| fputc(',', file) == EOF
 		|| write_uint(header->start_pos, sizeof(len_t) << 3, file)
@@ -18,7 +18,7 @@ int ent_header_write(key_header_t const* header, FILE* file)
 		|| write_uint(header->data_len, sizeof(len_t) << 3, file)
 		|| fputc(',', file) == EOF
 		|| write_tm(&header->create_date, file)
-		|| fputc('}', file) == EOF)
+		|| fputc('}', file) == EOF  )
 	{
 		return fail(0, "File write error");
 	}
@@ -116,7 +116,7 @@ kkey_t* key_create(key_header_t* header, FILE* file)
 	ret->head = header;
 	ret->file = file;
 
-	//fprintf(stderr, "Keystream is seekable: %s\n", is_not_seekable(file) ? "no" : "yes");
+	// fprintf(stderr, "Keystream is seekable: %s\n", is_not_seekable(file) ? "no" : "yes");
 	// Is it a stream like stdin where we dont know the size?
 	// Then we have to read all
 	if (header->data_len == -1)

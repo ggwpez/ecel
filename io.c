@@ -95,7 +95,7 @@ struct tm read_tm(FILE* file)
 	skip(file, '(');
 	time.tm_year = read_uint(8, file);
 	skip(file, '-');
-	time.tm_mon = read_uint(4, file);
+	time.tm_mon = read_uint(4, file) -1;
 	skip(file, '-');
 	time.tm_mday = read_uint(8, file);
 	skip(file, ')');
