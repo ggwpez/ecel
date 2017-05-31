@@ -2,7 +2,7 @@
 #include "io.h"
 #include "fail.h"
 
-#include <assert.h>
+#include "defines.h"
 #include <stdlib.h>
 #include <sys/stat.h>
 
@@ -152,17 +152,19 @@ int key_write(kkey_t* ent, FILE* file, int header_only)
 
 	if (ent_header_write(ent->head, file))
 	{
-		return fail(0, "Error writing key header file");
+		return fail(0, "Error writing key file header");
 	}
 	if (! header_only)
 	{
+		unsigned tmp;
 		if (ent->buffer)
 		{
 			if (fwrite(ent->buffer, 1, ent->head->data_len, file) != ent->head->data_len)
 				return fail(0, "File write error");
 		}
-		else if (fsplice(ent->file, file, ent->head->data_len) != ent->head->data_len)
+		else if ((tmp = fsplice(ent->file, file, ent->head->data_len)) != ent->head->data_len)
 		{
+			fprintf(stderr, "Tried to write %lu bytes, but only did %u\n", ent->head->data_len, tmp);
 			return fail(0, "Error writing key file");
 		}
 	}

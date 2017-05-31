@@ -1,6 +1,6 @@
 #include "fail.h"
+#include "defines.h"
 
-#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 

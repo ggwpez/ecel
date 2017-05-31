@@ -1,7 +1,7 @@
 #include "io.h"
 #include "fail.h"
+#include "defines.h"
 
-#include <assert.h>
 #include <stdio.h>
 #include <unistd.h>
 
@@ -20,13 +20,14 @@ FILE* open_file(char const* path, char const* mode)
 
 char* read_file(FILE* f, len_t* len)
 {
+	*len = 0;
 	assert(f && len);
 	char* buffer = (char*)malloc(BUFF_SIZE);
 	len_t tread = 0;
 	*len = 0;
 	assert(buffer);
 
-	size_t pos = ftello(f);
+	size_t pos = is_not_seekable(f) ? -1 : ftello(f);
 
 	while (tread = fread(buffer +*len, 1, BUFF_SIZE, f))
 	{
@@ -36,8 +37,9 @@ char* read_file(FILE* f, len_t* len)
 			assert(buffer = realloc(buffer, *len +BUFF_SIZE));
 	}
 
+	if (pos != -1)
 	// TODO assert
-	fseeko(f, pos, SEEK_SET);
+		fseeko(f, pos, SEEK_SET);
 	return buffer;
 }
 

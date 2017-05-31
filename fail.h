@@ -6,7 +6,7 @@
 
 extern int unalert;
 
-#define fail(mf, format, ...) _fail(mf, "[%s:%i] " format, __FILE__, __LINE__, ##__VA_ARGS__)
+#define fail(mf, format, ...) _fail(mf, "\n[%s:%i] " format, __FILE__, __LINE__, ##__VA_ARGS__)
 
 ///
 /// \brief fail

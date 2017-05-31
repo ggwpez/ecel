@@ -1,8 +1,8 @@
 #include "message.h"
 #include "io.h"
 #include "fail.h"
+#include "defines.h"
 
-#include <assert.h>
 #include <stdlib.h>
 #include <ctype.h>
 
@@ -98,7 +98,7 @@ void message_delete(message_t* msg)
 	free(msg);
 }
 
-int message_merge(crypto_ptr_t fptr, message_t* msg, kkey_t* ent, FILE* out)
+int message_encrypt(crypto_ptr_t fptr, message_t* msg, kkey_t* ent, FILE* out, bool strip_header)
 {
 	assert(msg && ent);
 
@@ -112,7 +112,8 @@ int message_merge(crypto_ptr_t fptr, message_t* msg, kkey_t* ent, FILE* out)
 	if ((msg->start_pos +msg->len) > (ent->head->start_pos +ent->head->data_len))
 		return fail(0, "Insufficient entopy data left:\nmsg->pos: 0x%" PRIx64 " msg->len: 0x%" PRIx64 "\nent->pos: 0x%" PRIx64 " ent->len: 0x%" PRIx64, msg->start_pos, msg->len, ent->head->start_pos, ent->head->data_len);
 
-	message_write(msg, out, 1);
+	if (! strip_header)
+		message_write(msg, out, 1);
 	for (len_t i = 0; i < msg->len; ++i)
 	{
 		char c1 = msg->buffer ? msg->buffer[i] : fgetc(msg->file);

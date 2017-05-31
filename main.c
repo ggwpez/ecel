@@ -6,7 +6,6 @@
 
 #define _GNU_SOURCE
 #include <stdio.h>
-#include <assert.h>
 #include <string.h>
 #include <unistd.h>
 #include <getopt.h>
@@ -26,7 +25,7 @@ static struct
 		* out_file;
 
 	kid_t* arg_kid;
-	int verbose;
+	int verbose, strip_msg_head;
 	int mode, crypto_mode;
 } state;
 
@@ -62,6 +61,7 @@ main(int argc, char** argv)
 				{ "encrypt",    required_argument, 0, 'e' },
 
 				{ "verbose",    optional_argument, 0, 'v' },
+				{ "strip-msg-head", optional_argument, 0, 's' },
 
 				{ "help",	    no_argument, 0, 'h'},
 				{ "raw",        required_argument, 0, 'r' },
@@ -75,7 +75,7 @@ main(int argc, char** argv)
 			};
 			/* getopt_long stores the option index here. */
 			int option_index = 0;
-			c = getopt_long(argc, argv, "m:k:r:i:p:o:v::e:h", long_options, &option_index);
+			c = getopt_long(argc, argv, "m:k:r:i:p:o:v::e:hs::", long_options, &option_index);
 
 			/* Detect the end of the options. */
 			if (c == -1)
@@ -100,6 +100,13 @@ main(int argc, char** argv)
 						state.verbose = _strtoul(optarg, 10);
 					else
 						state.verbose = 1;
+				} break;
+				case 's':
+				{
+					if (optarg)
+						state.strip_msg_head = _strtoul(optarg, 10);
+					else
+						state.strip_msg_head = 1;
 				} break;
 				case 'p':
 				{
@@ -230,7 +237,7 @@ main(int argc, char** argv)
 		kkey_t* key = key_read(state.key_file);
 		assert(msg && key);
 
-		ret = message_merge(get_crypto(state.crypto_mode), msg, key, state.out_file);
+		ret = message_encrypt(get_crypto(state.crypto_mode), msg, key, state.out_file, state.strip_msg_head);
 
 		message_delete(msg);
 		key_delete(key);
@@ -238,7 +245,7 @@ main(int argc, char** argv)
 	else
 		return fail(0, "No mode set, see --help");
 
-	return 0;
+	return ret;
 }
 
 static void state_init(int argc, char** argv)
@@ -249,8 +256,8 @@ static void state_init(int argc, char** argv)
 	state.raw_file = stdin;
 	state.out_file = stdout;
 	state.arg_kid  = NULL;
-	state.verbose = mENCRYPT;
-	state.crypto_mode = 0;
+	state.verbose = state.strip_msg_head = 0;
+	state.crypto_mode = XOR;
 	state.mode = -1;
 }
 
