@@ -26,7 +26,7 @@ static struct
 
 	kid_t* arg_kid;
 	int verbose, strip_msg_head;
-	int mode, crypto_mode;
+	int mode, crypto_mode, get_mode;
 } state;
 
 #define mENCRYPT	0
@@ -34,6 +34,14 @@ static struct
 #define mCREATE_KEY 2
 #define mINFO_MSG	3
 #define mINFO_KEY	4
+#define mGET		5
+
+#define gMSG_KID	0
+#define gMSG_LEN	1
+#define gMSG_DATE	2
+#define gKEY_KID	3
+#define gKEY_LEN	4
+#define gKEY_DATE	5
 
 static void state_init(int argc, char** argv);
 static void state_cleanup(void);
@@ -59,6 +67,7 @@ main(int argc, char** argv)
 				{ "info-key",	no_argument, &state.mode, mINFO_KEY },
 				{ "info-msg",	no_argument, &state.mode, mINFO_MSG },
 				{ "encrypt",    required_argument, 0, 'e' },
+				{ "get",		required_argument, 0, 'g' },
 
 				{ "verbose",    optional_argument, 0, 'v' },
 				{ "strip-msg-head", optional_argument, 0, 's' },
@@ -75,7 +84,7 @@ main(int argc, char** argv)
 			};
 			/* getopt_long stores the option index here. */
 			int option_index = 0;
-			c = getopt_long(argc, argv, "m:k:r:i:p:o:v::e:hs::", long_options, &option_index);
+			c = getopt_long(argc, argv, "m:k:r:i:p:o:v::e:hs::g:", long_options, &option_index);
 
 			/* Detect the end of the options. */
 			if (c == -1)
@@ -88,6 +97,14 @@ main(int argc, char** argv)
 					/* If this option set a flag, do nothing else now. */
 					if (long_options[option_index].flag != 0)
 						break;
+				} break;
+				case 'g':
+				{
+					state.mode = mGET;
+					if (! strcmp(optarg, "key_kid"))
+						state.get_mode = gKEY_KID;
+					else
+						fail(0, "Get mode not yet supported. TODO");
 				} break;
 				case 'e':
 				{
@@ -187,6 +204,23 @@ main(int argc, char** argv)
 		key_print(key, state.out_file);
 		fputc('\n', state.out_file);
 		key_delete(key);
+	}
+	else if (state.mode == mGET)
+	{
+		if (state.get_mode == gKEY_KID)
+		{
+			if (! state.key_file)
+				state.key_file = stdin;
+			// TODO: check that no other file is set, since it would be ignored
+
+			kkey_t* key = key_read(state.key_file);
+			assert(key);
+
+			write_uint(key->head->kid, sizeof(kid_t) << 3, state.out_file);
+			key_delete(key);
+		}
+		else
+			fail(0, "Get mode not yet supported. TODO");
 	}
 	else if (state.mode == mCREATE_MSG)		/* Shall we create a message? */
 	{
