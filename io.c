@@ -71,16 +71,21 @@ ssize_t flen(FILE* f)
 ssize_t fsplice(FILE* in, FILE* out, ssize_t len)
 {
 	char c;
-	ssize_t l;
+	ssize_t l = 0;
 	len_t pos1 = ftello(in),
 		  pos2 = ftello(out);
+	char* buffer = malloc(BUFF_SIZE);
 
-	for (l = 0; l < len; ++l)
+	while (l < len)
 	{
-		if (((c = fgetc(in)) == EOF) && ferror(in))
+		ssize_t to_read = (len -l) > BUFF_SIZE ? BUFF_SIZE : len -l;
+
+		if (fread(buffer, 1, to_read, in) != to_read)
 			return fail(0, "File_in read error");
-		if ((fputc(c, out) == EOF) && ferror(out))
+		if (fwrite(buffer, 1, to_read, out) != to_read)
 			return fail(0, "File_out write error");
+
+		l += to_read;
 	}
 
 	fseeko(in, pos1, SEEK_SET);
