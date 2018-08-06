@@ -11,7 +11,7 @@
 #include <getopt.h>
 #include <time.h>
 
-int print_usage();
+int print_usage(void);
 
 // Trying out a new style, pack all must-free data in global struct
 // and register dtor with atexit
@@ -45,7 +45,7 @@ static struct
 
 static void state_init(int argc, char** argv);
 static void state_cleanup(void);
-static void print_call();
+static void print_call(void);
 
 int
 main(int argc, char** argv)
@@ -104,7 +104,7 @@ main(int argc, char** argv)
 					if (! strcmp(optarg, "key_kid"))
 						state.get_mode = gKEY_KID;
 					else
-						fail(0, "Get mode not yet supported. TODO");
+						fail(0, "Get mode not yet supported. //TODO");
 				} break;
 				case 'e':
 				{
@@ -171,7 +171,7 @@ main(int argc, char** argv)
 				{
 					/* getopt_long already printed an error message. */
 					exit(EXIT_FAILURE);
-				} break;
+				}
 			}
 		}
 	}
@@ -253,9 +253,9 @@ main(int argc, char** argv)
 	{
 		if (! state.key_file && ! state.msg_file)	/* Both streams missing? */
 		{
-			return fail(0, "key and input cant be both NULL in encrypt mode");
+			return fail(0, "Key and input cant be both NULL in encrypt mode");
 		}
-		else if (state.key_file == stdin && state.key_file == state.msg_file)
+		else if (state.key_file == stdin && state.msg_file == stdin)
 		{
 			return fail(0, "Only one stream can read from stdin simultaniously");
 		}

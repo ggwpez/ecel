@@ -88,7 +88,7 @@ ssize_t fsplice(FILE* in, FILE* out, ssize_t len)
 		l += to_read;
 	}
 
-	fseeko(in, pos1, SEEK_SET);
+	fseeko( in, pos1, SEEK_SET);
 	fseeko(out, pos2, SEEK_SET);
 
 	return l;
