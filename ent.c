@@ -64,7 +64,7 @@ key_header_t* key_header_create(kid_t kid, len_t start_pos, struct tm* create_da
 	if (! create_date)
 	{
 		time_t ltime;
-		struct tm* utc;
+	//	struct tm* utc; TODO
 		time(&ltime);
 		ret->create_date = *gmtime(&ltime);
 	}
@@ -159,7 +159,7 @@ int key_write(kkey_t* ent, FILE* file, int header_only)
 		unsigned tmp;
 		if (ent->buffer)
 		{
-			if (fwrite(ent->buffer, 1, ent->head->data_len, file) != ent->head->data_len)
+			if (fwrite(ent->buffer, 1, (size_t)ent->head->data_len, file) != (size_t)ent->head->data_len)
 				return fail(0, "File write error");
 		}
 		else if ((tmp = fsplice(ent->file, file, ent->head->data_len)) != ent->head->data_len)
@@ -176,8 +176,8 @@ int key_print(kkey_t* ent, FILE* out)
 {
 	assert(ent && out);
 
-	write_uint(ent->head->kid, sizeof(kid_t) << 3, out), fprintf(out, "  "),
-	write_uint(ent->head->start_pos, sizeof(len_t) << 3, out), fprintf(out, "  "),
-	write_uint(ent->head->data_len, sizeof(len_t) << 3, out), fprintf(out, "  "),
-	fprintf(out, "%i-%i-%i", ent->head->create_date.tm_year +1900, ent->head->create_date.tm_mon +1, ent->head->create_date.tm_mday);
+	write_uint(ent->head->kid, sizeof(kid_t) << 3, out); fprintf(out, "  ");
+	write_uint(ent->head->start_pos, sizeof(len_t) << 3, out); fprintf(out, "  ");
+	write_uint(ent->head->data_len, sizeof(len_t) << 3, out); fprintf(out, "  ");
+	return fprintf(out, "%i-%i-%i", ent->head->create_date.tm_year +1900, ent->head->create_date.tm_mon +1, ent->head->create_date.tm_mday);
 }

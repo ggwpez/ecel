@@ -13,9 +13,9 @@ int message_write(message_t const* msg, FILE* file, int header_only)
 	if (fputc('[', file) == EOF
 		|| write_uint(msg->id, sizeof(kid_t) << 3, file)
 		|| fputc(',', file) == EOF
-		|| write_uint(msg->start_pos, sizeof(len_t) << 3, file)
+		|| write_lent(msg->start_pos, file)
 		|| fputc(',', file) == EOF
-		|| write_uint(msg->len, sizeof(len_t) << 3, file)
+		|| write_lent(msg->len, file)
 		|| fputc(']', file) == EOF)
 	{
 		return fail(0, "File write error");
@@ -24,7 +24,7 @@ int message_write(message_t const* msg, FILE* file, int header_only)
 	{
 		if (msg->buffer)
 		{
-			if (fwrite(msg->buffer, 1, msg->len, file) != msg->len)
+			if (fwrite(msg->buffer, 1, (size_t)msg->len, file) != (size_t)msg->len)
 				return fail(0, "File write error");
 		}
 		else if (fsplice(msg->file, file, msg->len) != msg->len)
@@ -46,14 +46,17 @@ message_t* message_read(FILE* file)
 
 	message_t* ret = (message_t*)malloc(sizeof(message_t));
 	if (! ret)
-		return fail(0, "Malloc error"), NULL;
+	{
+		fail(0, "Malloc error");
+		return NULL;
+	}
 
 	skip(file, '[');
 	ret->id = read_uint(sizeof(kid_t) << 3, file);
 	skip(file, ',');
-	ret->start_pos = read_uint(sizeof(len_t) << 3, file);
+	ret->start_pos = read_lent(file);
 	skip(file, ',');
-	ret->len = read_uint(sizeof(len_t) << 3, file);
+	ret->len = read_lent(file);
 	skip(file, ']');
 
 	ret->file = file;
@@ -67,7 +70,10 @@ message_t* message_create(kid_t id, len_t start_pos, FILE* file)
 	assert(file);
 	message_t* ret = (message_t*)malloc(sizeof(message_t));
 	if (! ret)
-		return fail(0, "Malloc error"), NULL;
+	{
+		fail(0, "Malloc error");
+		return NULL;
+	}
 
 	ret->id = id;
 	ret->start_pos = start_pos;
@@ -116,8 +122,8 @@ int message_encrypt(crypto_ptr_t fptr, message_t* msg, kkey_t* ent, FILE* out, b
 		message_write(msg, out, 1);
 	for (len_t i = 0; i < msg->len; ++i)
 	{
-		char c1 = msg->buffer ? msg->buffer[i] : fgetc(msg->file);
-		char c2 = ent->buffer ? ent->buffer[i] : fgetc(ent->file);
+		int c1 = msg->buffer ? msg->buffer[i] : fgetc(msg->file);
+		int c2 = ent->buffer ? ent->buffer[i] : fgetc(ent->file);
 
 		if (((c1 == EOF) && ferror(msg->file)) || ((c2 == EOF) && ferror(ent->file)))
 			return fail(0, "File_msg read error");
@@ -135,7 +141,8 @@ int message_print(message_t* msg, FILE* out)
 {
 	assert(msg && out);
 
-	write_uint(msg->id, sizeof(kid_t) << 3, out), fprintf(out, "  "),
-	write_uint(msg->start_pos, sizeof(len_t) << 3, out), fprintf(out, "  "),
-	write_uint(msg->len, sizeof(len_t) << 3, out), fprintf(out, "  ");
+	write_uint(msg->id, sizeof(kid_t) << 3, out); fprintf(out, "  ");
+	write_lent(msg->start_pos, out); fprintf(out, "  ");
+	write_lent(msg->len, out); fprintf(out, "  ");
+	return 1;
 }

@@ -4,7 +4,7 @@
 #include "crypto.h"
 #include "ent.h"
 
-typedef struct __attribute__((__packed__))
+typedef struct
 {
 	kid_t id;
 	len_t len;

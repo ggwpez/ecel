@@ -12,7 +12,8 @@ FILE* open_file(char const* path, char const* mode)
 
 	if (! file)
 	{
-		return fail(0, "File not found: '%s'\n", path), NULL;
+		fail(0, "File not found: '%s'\n", path);
+		return NULL;
 	}
 	else
 		return file;
@@ -27,14 +28,14 @@ char* read_file(FILE* f, len_t* len)
 	*len = 0;
 	assert(buffer);
 
-	size_t pos = is_not_seekable(f) ? -1 : ftello(f);
+	len_t pos = is_not_seekable(f) ? -1 : ftello(f);
 
-	while (tread = fread(buffer +*len, 1, BUFF_SIZE, f))
+	while ((tread = (len_t)fread(buffer +*len, 1, BUFF_SIZE, f)))
 	{
 		*len += tread;
 
 		if (tread == BUFF_SIZE)
-			assert(buffer = realloc(buffer, *len +BUFF_SIZE));
+			assert(buffer = realloc(buffer, (size_t)*len +BUFF_SIZE));
 	}
 
 	if (pos != -1)
@@ -50,9 +51,9 @@ int is_not_seekable(FILE* f)
 }
 
 // Dosent work on stdin
-ssize_t flen(FILE* f)
+len_t flen(FILE* f)
 {
-	size_t s, l;
+	len_t s, l;
 
 	// Will fseeko fail?
 	if (is_not_seekable(f))
@@ -60,25 +61,30 @@ ssize_t flen(FILE* f)
 
 	s = ftello(f);
 	if (fseeko(f, 0, SEEK_END))
-		return fail(0, "fseeko error"), -1;
+	{
+		fail(0, "fseeko error");
+		return LEN_INVALID;
+	}
 	l = ftello(f);
 	if (fseeko(f, s, SEEK_SET))
-		return fail(0, "fseeko error"), -1;
+	{
+		fail(0, "fseeko error");
+		return LEN_INVALID;
+	}
 
 	return l;
 }
 
-ssize_t fsplice(FILE* in, FILE* out, ssize_t len)
+len_t fsplice(FILE* in, FILE* out, len_t len)
 {
-	char c;
-	ssize_t l = 0;
+	len_t l = 0;
 	len_t pos1 = ftello(in),
 		  pos2 = ftello(out);
 	char* buffer = malloc(BUFF_SIZE);
 
 	while (l < len)
 	{
-		ssize_t to_read = (len -l) > BUFF_SIZE ? BUFF_SIZE : len -l;
+		size_t to_read = (len -l) > BUFF_SIZE ? BUFF_SIZE : (size_t)(len -l);
 
 		if (fread(buffer, 1, to_read, in) != to_read)
 			return fail(0, "File_in read error");
@@ -131,7 +137,7 @@ int write_tm(struct tm const* time, FILE* file)
 
 #define IHEX(c) ((c) <= '9' ? (c) -'0' : (c) -'a' +10)
 
-uint64_t read_uint(int const bits, FILE* file)
+uint64_t read_uint(unsigned const bits, FILE* file)
 {
 	assert(file);
 	assert(bits && !(bits % 4) && bits <= 64);
@@ -139,7 +145,50 @@ uint64_t read_uint(int const bits, FILE* file)
 
 	for (size_t i = 0; i < (bits >> 2); ++i)
 	{
-		char c = fgetc(file);
+		int c = fgetc(file);
+
+		if (c == EOF)
+			return (uint64_t)fail(0, "Unawaited EOF");
+		else if (! isxdigit(c))
+			return (uint64_t)fail(0, "Currently only works with hex input but got: '%c'", c);
+		else
+			ret = (ret << 4) | (uint64_t)IHEX(c);
+	}
+
+	return ret;
+}
+
+#define HEX(c) ((c) <= 9 ? '0' +(c) : 'a' +(c) -10)
+
+int write_uint(uint64_t const v, unsigned const bits, FILE* file)
+{
+	assert(file);
+	assert(bits && !(bits % 4) && bits <= 64);
+
+	for (int i = (bits >> 2) -1; i >= 0; --i)
+		fputc(HEX((v >> (i << 2)) & 15), file);
+
+	return 0;
+}
+
+int64_t read_int(int const bits, FILE* file)
+{
+	return (int64_t)read_uint(bits, file);
+}
+
+int write_int(int64_t const v, const unsigned bits, FILE* file)
+{
+	return write_uint((uint64_t const)v, bits, file);
+}
+
+len_t read_lent(FILE* file)
+{
+	assert(file);
+	len_t ret = 0;
+
+	for (size_t i = 0; i < 16; ++i)
+	{
+		int c = fgetc(file);
 
 		if (c == EOF)
 			return fail(0, "Unawaited EOF");
@@ -152,14 +201,11 @@ uint64_t read_uint(int const bits, FILE* file)
 	return ret;
 }
 
-#define HEX(c) ((c) <= 9 ? '0' +(c) : 'a' +(c) -10)
-
-int write_uint(uint64_t const v, int const bits, FILE* file)
+int write_lent(len_t const v, FILE* file)
 {
 	assert(file);
-	assert(bits && !(bits % 4) && bits <= 64);
 
-	for (int i = (bits >> 2) -1; i >= 0; --i)
+	for (int i = 16 -1; i >= 0; --i)
 		fputc(HEX((v >> (i << 2)) & 15), file);
 
 	return 0;

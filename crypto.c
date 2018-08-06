@@ -11,22 +11,26 @@ crypto_ptr_t get_crypto(crypto_t mode)
 			return &crypto_id_key;
 		case XOR:
 			return &crypto_xor;
-		default:
-			fail(0, "Unknown crypto_t given: %i", (int)mode);
 	}
+
+	fail(0, "Unknown crypto_t given: %i", (int)mode);
+	return NULL;
 }
 
-char crypto_id_msg(char msg, char key, len_t l)
+char crypto_id_msg(int msg, int key, len_t l)
 {
+	UNUSED(key && l);
 	return msg;
 }
 
-char crypto_id_key(char msg, char key, len_t l)
+char crypto_id_key(int msg, int key, len_t l)
 {
+	UNUSED(msg && l);
 	return key;
 }
 
-char crypto_xor(char msg, char key, len_t l)
+char crypto_xor(int msg, int key, len_t l)
 {
+	UNUSED(l);
 	return (msg ^ key);
 }

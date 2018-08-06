@@ -66,7 +66,7 @@ main(int argc, char** argv)
 				{ "create-msg", no_argument, &state.mode, mCREATE_MSG },
 				{ "info-key",	no_argument, &state.mode, mINFO_KEY },
 				{ "info-msg",	no_argument, &state.mode, mINFO_MSG },
-				{ "encrypt",    required_argument, 0, 'e' },
+				{ "encrypt",    optional_argument, 0, 'e' },
 				{ "get",		required_argument, 0, 'g' },
 
 				{ "verbose",    optional_argument, 0, 'v' },
@@ -109,7 +109,10 @@ main(int argc, char** argv)
 				case 'e':
 				{
 					state.mode = 0;
-					state.crypto_mode = (crypto_t)_strtoul(optarg, 10);
+					if (optarg)
+						state.crypto_mode = (crypto_t)_strtoul(optarg, 10);
+					else
+						state.crypto_mode = 2;
 				} break;
 				case 'v':
 				{
