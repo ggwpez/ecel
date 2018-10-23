@@ -13,9 +13,9 @@ int ent_header_write(key_header_t const* header, FILE* file)
 	if (   fputc('{', file) == EOF
 		|| write_uint(header->kid, sizeof(kid_t) << 3, file)
 		|| fputc(',', file) == EOF
-		|| write_uint(header->start_pos, sizeof(len_t) << 3, file)
+		|| write_lent(header->start_pos, file)
 		|| fputc(',', file) == EOF
-		|| write_uint(header->data_len, sizeof(len_t) << 3, file)
+		|| write_lent(header->data_len, file)
 		|| fputc(',', file) == EOF
 		|| write_tm(&header->create_date, file)
 		|| fputc('}', file) == EOF  )
@@ -32,14 +32,17 @@ key_header_t* key_header_read(FILE* file)
 
 	key_header_t* ret = (key_header_t*)malloc(sizeof(key_header_t));
 	if (! ret)
-		return fail(0, "Malloc error"), NULL;
+	{
+		fail(0, "Malloc error");
+		return NULL;
+	}
 
 	skip(file, '{');
 	ret->kid = read_uint(sizeof(kid_t) << 3, file);
 	skip(file, ',');
-	ret->start_pos = read_uint(sizeof(len_t) << 3, file);
+	ret->start_pos = read_lent(file);
 	skip(file, ',');
-	ret->data_len = read_uint(sizeof(len_t) << 3, file);
+	ret->data_len = read_lent(file);
 	skip(file, ',');
 	ret->create_date = read_tm(file);
 	skip(file, '}');
@@ -56,7 +59,10 @@ key_header_t* key_header_create(kid_t kid, len_t start_pos, struct tm* create_da
 {
 	key_header_t* ret = (key_header_t*)malloc(sizeof(key_header_t));
 	if (! ret)
-		return fail(0, "Malloc error"), NULL;
+	{
+		fail(0, "Malloc error");
+		return NULL;
+	}
 
 	ret->kid = kid;
 	ret->start_pos = start_pos;
@@ -100,7 +106,10 @@ kkey_t* key_read(FILE* file)
 
 	key_header_t* head = key_header_read(file);
 	if (! head)
-		return fail(0, "Malloc error"), NULL;
+	{
+		fail(0, "Malloc error");
+		return NULL;
+	}
 
 	return key_create(head, file);
 }
@@ -111,7 +120,10 @@ kkey_t* key_create(key_header_t* header, FILE* file)
 
 	kkey_t* ret = (kkey_t*)malloc(sizeof(kkey_t));
 	if (! ret)
-		return fail(0, "Malloc error"), NULL;
+	{
+		fail(0, "Malloc error");
+		return NULL;
+	}
 
 	ret->head = header;
 	ret->file = file;
@@ -156,7 +168,7 @@ int key_write(kkey_t* ent, FILE* file, int header_only)
 	}
 	if (! header_only)
 	{
-		unsigned tmp;
+		len_t tmp;
 		if (ent->buffer)
 		{
 			if (fwrite(ent->buffer, 1, (size_t)ent->head->data_len, file) != (size_t)ent->head->data_len)
@@ -164,7 +176,7 @@ int key_write(kkey_t* ent, FILE* file, int header_only)
 		}
 		else if ((tmp = fsplice(ent->file, file, ent->head->data_len)) != ent->head->data_len)
 		{
-			fprintf(stderr, "Tried to write %lu bytes, but only did %u\n", ent->head->data_len, tmp);
+			fprintf(stderr, "Tried to write %" LEN_FMT " bytes, but only did %" LEN_FMT "\n", ent->head->data_len, tmp);
 			return fail(0, "Error writing key file");
 		}
 	}
@@ -177,7 +189,7 @@ int key_print(kkey_t* ent, FILE* out)
 	assert(ent && out);
 
 	write_uint(ent->head->kid, sizeof(kid_t) << 3, out); fprintf(out, "  ");
-	write_uint(ent->head->start_pos, sizeof(len_t) << 3, out); fprintf(out, "  ");
-	write_uint(ent->head->data_len, sizeof(len_t) << 3, out); fprintf(out, "  ");
+	write_lent(ent->head->start_pos, out); fprintf(out, "  ");
+	write_lent(ent->head->data_len, out); fprintf(out, "  ");
 	return fprintf(out, "%i-%i-%i", ent->head->create_date.tm_year +1900, ent->head->create_date.tm_mon +1, ent->head->create_date.tm_mday);
 }

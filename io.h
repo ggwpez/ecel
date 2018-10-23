@@ -21,7 +21,7 @@ int write_tm(struct tm const* time, FILE* file);
 uint64_t read_uint(const unsigned bits, FILE* file);
 int write_uint(uint64_t const v, const unsigned bits, FILE* file);
 
-int64_t read_int(int const bits, FILE* file);
+int64_t read_int(const unsigned bits, FILE* file);
 int write_int(int64_t const v, const unsigned bits, FILE* file);
 
 len_t read_lent(FILE* file);

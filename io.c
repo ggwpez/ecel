@@ -106,11 +106,11 @@ struct tm read_tm(FILE* file)
 	struct tm time;
 
 	skip(file, '(');
-	time.tm_year = read_uint(8, file);
+	time.tm_year = (int)read_int(8, file);
 	skip(file, '-');
-	time.tm_mon = read_uint(4, file) -1;
+	time.tm_mon = (int)read_int(4, file) -1;
 	skip(file, '-');
-	time.tm_mday = read_uint(8, file);
+	time.tm_mday = (int)read_int(8, file);
 	skip(file, ')');
 
 	return time;
@@ -122,11 +122,11 @@ int write_tm(struct tm const* time, FILE* file)
 	assert(time->tm_year <= 255 && "Hello Mr. Future");
 
 	if (fputc('(', file) == EOF
-		|| write_uint(time->tm_year, 8, file)
+		|| write_int(time->tm_year, 8, file)
 		|| fputc('-', file) == EOF
-		|| write_uint(time->tm_mon +1, 4, file)		// month is 0-11
+		|| write_int(time->tm_mon +1, 4, file)		// month is 0-11
 		|| fputc('-', file) == EOF
-		|| write_uint(time->tm_mday, 8, file)
+		|| write_int(time->tm_mday, 8, file)
 		|| fputc(')', file) == EOF)
 	{
 		return fail(0, "Error serializing the time");
@@ -171,7 +171,7 @@ int write_uint(uint64_t const v, unsigned const bits, FILE* file)
 	return 0;
 }
 
-int64_t read_int(int const bits, FILE* file)
+int64_t read_int(unsigned const bits, FILE* file)
 {
 	return (int64_t)read_uint(bits, file);
 }

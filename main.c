@@ -13,11 +13,16 @@
 
 int print_usage(void);
 
-// Trying out a new style, pack all must-free data in global struct
-// and register dtor with atexit
+/* Trying out a new style, pack all must-free data in global struct
+ * and register dtor with atexit */
 static struct
 {
 	int argc;
+
+	/* Moved them up for padding */
+	int verbose, strip_msg_head;
+	int mode, crypto_mode, get_mode;
+
 	char** argv;
 	FILE* key_file,
 		* msg_file,
@@ -25,23 +30,53 @@ static struct
 		* out_file;
 
 	kid_t* arg_kid;
-	int verbose, strip_msg_head;
-	int mode, crypto_mode, get_mode;
 } state;
 
-#define mENCRYPT	0
-#define mCREATE_MSG 1
-#define mCREATE_KEY 2
-#define mINFO_MSG	3
-#define mINFO_KEY	4
-#define mGET		5
+enum operation_mode
+{
+	mENCRYPT,
+	mCREATE_MSG,
+	mCREATE_KEY,
+	mINFO_MSG,
+	mINFO_KEY,
+	mGET
+};
 
-#define gMSG_KID	0
-#define gMSG_LEN	1
-#define gMSG_DATE	2
-#define gKEY_KID	3
-#define gKEY_LEN	4
-#define gKEY_DATE	5
+enum get_mode
+{
+	gMSG_KID,
+	gMSG_LEN,
+	gMSG_DATE,
+	gKEY_KID,
+	gKEY_LEN,
+	gKEY_DATE
+};
+
+static struct option long_options[] =
+{
+	/* Flags */
+	{ "help",	    no_argument, 0, 'h'},
+	{ "create-key", no_argument, &state.mode, mCREATE_KEY },
+	{ "create-msg", no_argument, &state.mode, mCREATE_MSG },
+	{ "info-key",	no_argument, &state.mode, mINFO_KEY },
+	{ "info-msg",	no_argument, &state.mode, mINFO_MSG },
+
+	{ "encrypt",    optional_argument, 0, 'e' },
+	{ "strip-msg-head", optional_argument, 0, 's' },
+	{ "verbosity",  optional_argument, 0, 'v' },
+
+	{ "warning",	required_argument, 0, 'w'},
+	{ "get",		required_argument, 0, 'g' },
+	{ "raw",        required_argument, 0, 'r' },
+	{ "key",        required_argument, 0, 'k' },
+	{ "msg",        required_argument, 0, 'm' },
+	{ "pos",        required_argument, 0, 'p' },
+	{ "kid",        required_argument, 0, 'i' },
+	{ "output",     required_argument, 0, 'o' },
+
+	/* NULL descriptor */
+	{0, 0, 0, 0}
+};
 
 static void state_init(int argc, char** argv);
 static void state_cleanup(void);
@@ -59,29 +94,6 @@ main(int argc, char** argv)
 		int c;
 		while (1)
 		{
-			static struct option long_options[] =
-			{
-				/* These options set a flag. */
-				{ "create-key", no_argument, &state.mode, mCREATE_KEY },
-				{ "create-msg", no_argument, &state.mode, mCREATE_MSG },
-				{ "info-key",	no_argument, &state.mode, mINFO_KEY },
-				{ "info-msg",	no_argument, &state.mode, mINFO_MSG },
-				{ "encrypt",    optional_argument, 0, 'e' },
-				{ "get",		required_argument, 0, 'g' },
-
-				{ "verbose",    optional_argument, 0, 'v' },
-				{ "strip-msg-head", optional_argument, 0, 's' },
-
-				{ "help",	    no_argument, 0, 'h'},
-				{ "raw",        required_argument, 0, 'r' },
-				{ "key",        required_argument, 0, 'k' },
-				{ "msg",        required_argument, 0, 'm' },
-				{ "pos",        required_argument, 0, 'p' },
-				{ "kid",        required_argument, 0, 'i' },
-				{ "output",     required_argument, 0, 'o' },
-
-				{0, 0, 0, 0}
-			};
 			/* getopt_long stores the option index here. */
 			int option_index = 0;
 			c = getopt_long(argc, argv, "m:k:r:i:p:o:v::e:hs::g:", long_options, &option_index);
@@ -108,30 +120,48 @@ main(int argc, char** argv)
 				} break;
 				case 'e':
 				{
-					state.mode = 0;
 					if (optarg)
-						state.crypto_mode = (crypto_t)_strtoul(optarg, 10);
-					else
-						state.crypto_mode = 2;
+						state.crypto_mode = (int)_strtoul(optarg, 16);
 				} break;
 				case 'v':
 				{
 					if (optarg)
-						state.verbose = _strtoul(optarg, 10);
+					{
+						int verbosity = (int)_strtoul(optarg, 16);
+						if (verbosity == 0)
+							unalert = 1;
+						else if (verbosity == 1)
+							unalert = 0;
+						else if (verbosity == 2)
+						{
+							unalert	= 0;
+							state.verbose = 1;
+						}
+						else
+							fail(0, "Unknown value for --verbosity=%s", optarg);
+					}
 					else
-						state.verbose = 1;
+					{
+						unalert = 0;
+						state.verbose = 2;
+					}
 				} break;
 				case 's':
 				{
 					if (optarg)
-						state.strip_msg_head = _strtoul(optarg, 10);
-					else
-						state.strip_msg_head = 1;
+						state.strip_msg_head = (int)_strtoul(optarg, 16);
 				} break;
 				case 'p':
 				{
-					arg_pos = _strtoull(optarg, 16);
+					arg_pos = (len_t)_strtoull(optarg, 16);
+
+					if (! LEN_VALID(arg_pos))
+						fail(0, "Position argument (--pos) is invalid");
 				} break;
+				case 'w':
+				{
+					unalert = ! _strtoul(optarg, 16);
+				}break;
 				case 'i':
 				{
 					state.arg_kid = (kid_t*)malloc(sizeof(kid_t));
@@ -162,7 +192,7 @@ main(int argc, char** argv)
 				{
 					print_usage();
 					return 0;
-				} break;
+				}
 				case 'o':
 				{
 					if (! strcmp("-", optarg))
@@ -274,7 +304,7 @@ main(int argc, char** argv)
 		kkey_t* key = key_read(state.key_file);
 		assert(msg && key);
 
-		ret = message_encrypt(get_crypto(state.crypto_mode), msg, key, state.out_file, state.strip_msg_head);
+		ret = message_encrypt(get_crypto((crypto_t)state.crypto_mode), msg, key, state.out_file, state.strip_msg_head);
 
 		message_delete(msg);
 		key_delete(key);
@@ -327,16 +357,16 @@ print_usage()
 	fputs("\
 ecel - easy crypto easy life\n\
 usage:\n\
-	ecel --create-msg --kid=<number> [--pos=<number>] [--raw=<msg_file>]\n\
-	ecel --create-key --kid=<number> [--pos=<number>] [--raw=<key_file>]\n\
+	ecel --create-msg --kid=<number> [--pos=<number>] [--raw=<file>]\n\
+	ecel --create-key --kid=<number> [--pos=<number>] [--raw=<file>]\n\
 	ecel --encrypt (--key=<key> | --msg=<message> | --key=<key> --msg=<message>)\n\
+	ecel --get=key_id --key=<key>\n\
 \n\
 arguments:\n\
 	--help          Prints this screen\n\
 	--create-msg    Creates a message\n\
 	--create-key    Creates a key\n\
 	--encrypt       Encrypts a message with a key\n\
-	--unalert       Ignores minor errors. NOT ADVISED\n\
 	--alert         Disables --unalert\n\
 	--raw=<file>    Set a raw input file\n\
 	--key=<file>    Set a file created by --create-key\n\
@@ -344,10 +374,11 @@ arguments:\n\
 	--pos=<number>  Set the offset in the key\n\
 	--kid=<number>  Set the ID of the key\n\
 	--output=<file> Redirect stdout to <file>\n\
-	--verbose       Displays debug information\n\
+	--verbosity[=2] 0 quiet, 1 enable warnings (def), 2 enable debug info\n\
 \n\
-Passing - as <file> indicates stdin, which is default behaviour.\n\
-All numbers are hexadecimal, even when without \"0x\" or \"h\".\n\
+<key> indicates a <file> which was created by --create-key, same for <message>\n\
+Passing - as <file> indicates stdin, which is the default behaviour.\n\
+All numbers are hexadecimal even without \"0x\" or \"h\".\n\
 \n\
 examples:\n\
 	1. Create a key from entropy data:\n\
